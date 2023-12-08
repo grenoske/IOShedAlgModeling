@@ -86,6 +86,34 @@ namespace KursovaIO
         public int Sectors { get; set; }
     }
 
+    public class HardDriveController
+    {
+        public List<Request>? Requests { get; set; }
+        public HardDrive driver { get; set; }
+        public HardDriveController(HardDrive driver)
+        {
+            this.driver = driver;
+        }
+        public void AddRequest(File filePart, bool typeOfRequest)
+        {
+            if (Requests.Count == 20) // maximum number of request is 20 
+            {
+                ProcessRequest();
+            }
+            Requests.Add(new Request() { File = filePart, TypeOfRequest = typeOfRequest });
+        }
+        public void ProcessRequest()
+        {
+
+        }
+    }
+
+    public struct Request
+    {
+        public File File { get; set; }
+        public bool TypeOfRequest { get; set; } // 0 - Read, 1 - Write
+    }
+
     public class Processor
     {
         public int TotalQuantumTime { get; set; } = 20;
