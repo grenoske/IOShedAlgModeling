@@ -13,8 +13,9 @@ namespace KursovaIO
         public List<Track>? Tracks { get; set; }
         private int targetTrack;
         public int SeekTime { get; set; }
-        public int SeekTimeDirectional { get; set; } = 130;
-        public int PositionTime { get; set; } = 10;
+        public int PositionTime { get; set; }
+        public int TimeToMoveOneTrack { get; set; } = 10;
+        public int TimeToMoveFormFirstTrackToLast_opt { get; set; } = 130;
         public int RotationLatency { get; set; } = 8;
         public int TotalNumberOfRequests { get; set; } = 0;
         private int currentTrack { get; set; } = 0;
@@ -30,14 +31,31 @@ namespace KursovaIO
 
         private void SeekToTrack(int targetTrack)
         {
-            int trackSeekTime = Math.Abs(targetTrack - currentTrack) * PositionTime;
+            int Distance = Math.Abs(targetTrack - currentTrack);
 
-            if (targetTrack < currentTrack)
+            // disc feature. optim.
+            // for example it is less time to move using moveing through last 130ms.
+            // than from first to 500th straight it like 5000ms.
+            // !need to some improvement
+            if (Distance > (Tracks.Count / 2 + TimeToMoveFormFirstTrackToLast_opt / TimeToMoveOneTrack))
             {
-                trackSeekTime += SeekTimeDirectional;
+                if (currentTrack < Tracks.Count / 2)
+                {
+                    SeekTime = (currentTrack - 0) * TimeToMoveOneTrack + TimeToMoveFormFirstTrackToLast_opt + (Tracks.Count - targetTrack) * TimeToMoveOneTrack;
+                }
+                else
+                {
+                    SeekTime = (Tracks.Count - currentTrack) * TimeToMoveOneTrack + TimeToMoveFormFirstTrackToLast_opt + (targetTrack - 0) * TimeToMoveOneTrack;
+                }
+            }
+            else
+            {
+                SeekTime = Distance * TimeToMoveOneTrack;
             }
 
-            Console.WriteLine($"Seeking to track {targetTrack} takes {trackSeekTime} ms.");
+            PositionTime = SeekTime + RotationLatency;
+
+            Console.WriteLine($"Seeking from {currentTrack} to track {targetTrack} takes {PositionTime} ms.");
 
             currentTrack = targetTrack;
         }
