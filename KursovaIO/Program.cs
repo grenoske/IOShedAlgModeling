@@ -17,7 +17,7 @@ namespace KursovaIO
         public int TimeToMoveOneTrack { get; set; } = 10;
         public int TimeToMoveFormFirstTrackToLast_opt { get; set; } = 130;
         public int RotationLatency { get; set; } = 8;
-        public int TotalNumberOfRequests { get; set; } = 0;
+        public int TotalRequestsNumber { get; set; } = 0;
         private int currentTrack { get; set; } = 0;
 
         private void InitializeTracks(int numberOfTracks, int sectorsPerTrack)
@@ -63,19 +63,21 @@ namespace KursovaIO
         public void Read(File file)
         {
             targetTrack = new Random().Next(0, Tracks.Count);
-            Console.WriteLine($"Reading file with {file.NumberOfBlocks} blocks from the hard drive.");
+            Console.WriteLine($"Reading file with {file.NumberOfBlocks} blocks from the hard drive.(Current Bolock: {file.blocksRemaining}");
             SeekToTrack(targetTrack);
+            TotalRequestsNumber++;
         }
 
         public void Write(File file)
         {
             targetTrack = new Random().Next(0, Tracks.Count);
-            Console.WriteLine($"Writing file with {file.NumberOfBlocks} blocks to the hard drive.");
+            Console.WriteLine($"Writing file with {file.NumberOfBlocks} blocks to the hard drive.(Current Bolock: {file.blocksRemaining}");
 
             if (new Random().Next(0, 100) < 30)
             {
                 Console.WriteLine("Organizing blocks in adjacent sectors.");
             }
+            TotalRequestsNumber++;
         }
     }
     public struct Track
@@ -107,42 +109,45 @@ namespace KursovaIO
 
         public void ExecuteProcesses(HardDrive hardDrive)
         {
-            foreach (var process in Processes)
+            while (hardDrive.TotalRequestsNumber < 1000)
             {
-                while (CurrentQuantumTime >= 7)
+                foreach (var process in Processes)
                 {
-                    process.CreateRequest(hardDrive);
-                    CurrentQuantumTime -= process.RequestTime;
+                    while (CurrentQuantumTime >= 7)
+                    {
+                        process.CreateRequest(hardDrive);
+                        CurrentQuantumTime -= process.RequestTime;
+                    }
+                    CurrentQuantumTime = TotalQuantumTime;
                 }
-                CurrentQuantumTime = TotalQuantumTime;
             }
         }
     }
     public class Process
     {
+        private bool writeOperation = false;
         private File file;
         public Process() { }
         public int RequestTime { get; set; } = 7;
         public void CreateRequest(HardDrive hardDrive)
         {
-            if ( this.file == null || this.file.blocksRemaining == 0)
+            if (this.file == null || this.file.blocksRemaining == 0)
             {
                 file = new File(GetRandomNumberOfBlocks());
-            }
 
-            // Визначення операції (запис або читання)
-            var writeOperation = GetRandomOperation();
+                // Визначення операції (запис або читання)
+                writeOperation = GetRandomOperation();
+            }
 
             if (writeOperation)
             {
                 hardDrive.Write(file);
-                file.blocksRemaining--;
             }
             else
             {
                 hardDrive.Read(file);
-                file.blocksRemaining--;
             }
+            file.blocksRemaining--;
         }
 
         private int GetRandomNumberOfBlocks()
