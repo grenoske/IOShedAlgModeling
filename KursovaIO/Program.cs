@@ -70,13 +70,21 @@ namespace KursovaIO
 
         public void Write(File file)
         {
-            targetTrack = new Random().Next(0, Tracks.Count);
+            
             Console.WriteLine($"Writing file with {file.NumberOfBlocks} blocks to the hard drive.(Current Bolock: {file.blocksRemaining}");
-
-            if (new Random().Next(0, 100) < 30)
+            float percent = (float)file.blocksRemaining / (float)file.NumberOfBlocks;
+            if ( percent > 0.7)
             {
-                Console.WriteLine("Organizing blocks in adjacent sectors.");
+                // driver can write up to 30% of file's blocks in 
+                // neighbour sector on same track
+                // targetTrack = targetTrack;
+                Console.WriteLine($"----Organizing blocks in adjacent sectors. CurrentPercent {percent} ");
             }
+            else
+            {
+                targetTrack = new Random().Next(0, Tracks.Count);
+            }
+            SeekToTrack(targetTrack);
             TotalRequestsNumber++;
         }
     }
