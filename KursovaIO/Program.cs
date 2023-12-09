@@ -1,5 +1,7 @@
 ﻿using System.Diagnostics;
+using System.Net.Http.Headers;
 using System.Security.AccessControl;
+using System.Security.Cryptography;
 
 namespace KursovaIO
 {
@@ -18,7 +20,7 @@ namespace KursovaIO
         public int TimeToMoveFormFirstTrackToLast_opt { get; set; } = 130;
         public int RotationLatency { get; set; } = 8;
         public int TotalRequestsNumber { get; set; } = 0;
-        private int currentTrack { get; set; } = 0;
+        public int currentTrack { get; set; } = 0;
 
         private void InitializeTracks(int numberOfTracks, int sectorsPerTrack)
         {
@@ -96,30 +98,105 @@ namespace KursovaIO
 
     public class HardDriveController
     {
+        public int TypeOfAlgorithm { get; set; } = 1; // 1 - FCFS 2 - SSTF 3 - CircularLook   
         public List<Request>? Requests { get; set; }
         public HardDrive driver { get; set; }
         public HardDriveController(HardDrive driver)
         {
             this.driver = driver;
         }
-        public void AddRequest(File filePart, bool typeOfRequest)
+        public void AddRequest(File filePart, bool typeOfRequest, int targetTrack)
         {
             if (Requests.Count == 20) // maximum number of request is 20 
             {
                 ProcessRequest();
             }
-            Requests.Add(new Request() { File = filePart, TypeOfRequest = typeOfRequest });
+            Requests.Add(new Request() 
+            { 
+                File = filePart,
+                TypeOfRequest = typeOfRequest,
+                targetTrack = targetTrack
+            });
         }
         public void ProcessRequest()
         {
+            switch(TypeOfAlgorithm) 
+            {
+                case 1: FCFS();break; 
+                case 2: SSTF();break;
+                case 3: CircularLook();break;
+                default: Console.WriteLine("Err!not correctAlg!");break;
+            }
+
+        }
+
+        public void FCFS()
+        {
+            // firstComeFirstserved
+            // request is in correct order by default
+            Requests = new List<Request>(Requests);
+            // additional can add field DataTime 
+            //
+        }
+        public void SSTF()
+        {
+            // sort by shortest seek time first
+            List<Request> sortedRequests = new List<Request> { };
+            while (Requests.Count != 0)
+            {
+                Request ClosestTrack = new Request() { targetTrack = -1};
+                int minDistance = driver.Tracks.Count * 2;// just MAX number that is not be higher than any dist
+                foreach (Request request in Requests)
+                {
+                    int Distance = Math.Abs(driver.currentTrack - request.targetTrack);
+                    if (Distance < minDistance)
+                    {
+                        ClosestTrack = request;
+                    }
+                    else if ((request.targetTrack == 0 || request.targetTrack == driver.Tracks.Count) 
+                        && Distance == (driver.Tracks.Count - 1)) // from 0 to 500 seek time must be 13
+                    {
+                        ClosestTrack = request;
+                        minDistance = driver.TimeToMoveFormFirstTrackToLast_opt / driver.TimeToMoveOneTrack;
+                    }
+                }
+                if (ClosestTrack.targetTrack != -1)
+                {
+                    sortedRequests.Add(ClosestTrack);
+                    Requests.Remove(ClosestTrack);
+                }
+            }
+            
+            Requests = sortedRequests;
+        }
+        public void CircularLook()
+        {
+            // 
+            List<Request> sortedRequests = new List<Request> { };
+            int CurrentHiNumberTrack = driver.currentTrack;
+
+            while (Requests.Count != 0)
+            {
+                foreach (Request request in Requests)
+                {
+                    if (request.targetTrack > CurrentHiNumberTrack)
+                    {
+                        sortedRequests.Add(request);
+                        Requests.Remove(request);
+                    }
+                }
+                // driver.MoveToFirstTrack()
+            }
 
         }
     }
+
 
     public struct Request
     {
         public File File { get; set; }
         public bool TypeOfRequest { get; set; } // 0 - Read, 1 - Write
+        public int targetTrack { get; set; }
     }
 
     public class Processor
