@@ -165,22 +165,23 @@ namespace KursovaIO
         }
         public void CircularLook()
         {
-            // 
+            // CircularLook
             List<Request> sortedRequests = new List<Request> { };
-            int CurrentHiNumberTrack = driver.currentTrack;
-
             while (Requests.Count != 0)
             {
+                int CurrentHiNumberTrack = driver.currentTrack;
                 foreach (Request request in Requests)
                 {
-                    if (request.targetTrack > CurrentHiNumberTrack)
+                    if (request.targetTrack >= CurrentHiNumberTrack)
                     {
+                        CurrentHiNumberTrack = request.targetTrack;
                         sortedRequests.Add(request);
-                        Requests.Remove(request);
                     }
                 }
+                Requests.RemoveAll(request => sortedRequests.Contains(request));
                 driver.MoveToFirstTrack();
             }
+            Requests = sortedRequests;
 
         }
     }
@@ -309,7 +310,7 @@ namespace KursovaIO
         {
             HardDrive driveC = new HardDrive(numberOfTracks:500, sectorsPerTrack:100);
             HardDriveController driveCController = new HardDriveController(driveC);
-            driveCController.TypeOfAlgorithm = 2;
+            driveCController.TypeOfAlgorithm = 3;
             Processor singlePros = new Processor(numberOfProcesses:10, quantTime:20);
             singlePros.ExecuteProcesses(driveCController);
         }
