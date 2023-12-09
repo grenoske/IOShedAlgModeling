@@ -35,25 +35,7 @@ namespace KursovaIO
         {
             int Distance = Math.Abs(targetTrack - currentTrack);
 
-            // disc feature. optim.
-            // for example it is less time to move using moveing through last 130ms.
-            // than from first to 500th straight it like 5000ms.
-            // !need to some improvement
-            if (Distance > (Tracks.Count / 2 + TimeToMoveFormFirstTrackToLast_opt / TimeToMoveOneTrack))
-            {
-                if (currentTrack < Tracks.Count / 2)
-                {
-                    SeekTime = (currentTrack - 0) * TimeToMoveOneTrack + TimeToMoveFormFirstTrackToLast_opt + (Tracks.Count - targetTrack) * TimeToMoveOneTrack;
-                }
-                else
-                {
-                    SeekTime = (Tracks.Count - currentTrack) * TimeToMoveOneTrack + TimeToMoveFormFirstTrackToLast_opt + (targetTrack - 0) * TimeToMoveOneTrack;
-                }
-            }
-            else
-            {
-                SeekTime = Distance * TimeToMoveOneTrack;
-            }
+            SeekTime = Distance * TimeToMoveOneTrack;
 
             PositionTime = SeekTime + RotationLatency;
 
@@ -62,32 +44,24 @@ namespace KursovaIO
             currentTrack = targetTrack;
         }
 
-        public void Read(File file)
+        public void Read(File file, int targetTrack)
         {
-            targetTrack = new Random().Next(0, Tracks.Count);
             Console.WriteLine($"Reading file with {file.NumberOfBlocks} blocks from the hard drive.(Current Bolock: {file.blocksRemaining}");
             SeekToTrack(targetTrack);
             TotalRequestsNumber++;
         }
 
-        public void Write(File file)
+        public void Write(File file, int targetTrack)
         {
             
             Console.WriteLine($"Writing file with {file.NumberOfBlocks} blocks to the hard drive.(Current Bolock: {file.blocksRemaining}");
-            float percent = (float)file.blocksRemaining / (float)file.NumberOfBlocks;
-            if ( percent > 0.7)
-            {
-                // driver can write up to 30% of file's blocks in 
-                // neighbour sector on same track
-                // targetTrack = targetTrack;
-                Console.WriteLine($"----Organizing blocks in adjacent sectors. CurrentPercent {percent} ");
-            }
-            else
-            {
-                targetTrack = new Random().Next(0, Tracks.Count);
-            }
             SeekToTrack(targetTrack);
             TotalRequestsNumber++;
+        }
+
+        public void MoveToFirstTrack()
+        {
+            currentTrack = 0;
         }
     }
     public struct Track
@@ -101,14 +75,19 @@ namespace KursovaIO
         public int TypeOfAlgorithm { get; set; } = 1; // 1 - FCFS 2 - SSTF 3 - CircularLook   
         public List<Request>? Requests { get; set; }
         public HardDrive driver { get; set; }
+        public int NumberOfTracks { get { return driver.Tracks.Count; } }
+        public int TotalRequestsNumber { get { return driver.TotalRequestsNumber; } }
         public HardDriveController(HardDrive driver)
         {
             this.driver = driver;
+            Requests = new List<Request>(); 
         }
         public void AddRequest(File filePart, bool typeOfRequest, int targetTrack)
         {
+            Console.WriteLine($"------------Requests.Count: {Requests.Count}");
             if (Requests.Count == 20) // maximum number of request is 20 
             {
+                Console.WriteLine($"------------TotalReqNumber: {TotalRequestsNumber}");
                 ProcessRequest();
             }
             Requests.Add(new Request() 
@@ -127,6 +106,18 @@ namespace KursovaIO
                 case 3: CircularLook();break;
                 default: Console.WriteLine("Err!not correctAlg!");break;
             }
+            foreach (Request req in Requests)
+            {
+                if(req.TypeOfRequest == true)
+                {
+                    driver.Write(req.File, req.targetTrack);
+                }
+                else
+                {
+                    driver.Read(req.File, req.targetTrack);
+                }
+            }
+            Requests.Clear();
 
         }
 
@@ -142,16 +133,18 @@ namespace KursovaIO
         {
             // sort by shortest seek time first
             List<Request> sortedRequests = new List<Request> { };
+            int currentTrack = driver.currentTrack;
             while (Requests.Count != 0)
             {
                 Request ClosestTrack = new Request() { targetTrack = -1};
                 int minDistance = driver.Tracks.Count * 2;// just MAX number that is not be higher than any dist
                 foreach (Request request in Requests)
                 {
-                    int Distance = Math.Abs(driver.currentTrack - request.targetTrack);
+                    int Distance = Math.Abs(currentTrack - request.targetTrack);
                     if (Distance < minDistance)
                     {
                         ClosestTrack = request;
+                        minDistance = Distance;
                     }
                     else if ((request.targetTrack == 0 || request.targetTrack == driver.Tracks.Count) 
                         && Distance == (driver.Tracks.Count - 1)) // from 0 to 500 seek time must be 13
@@ -162,6 +155,7 @@ namespace KursovaIO
                 }
                 if (ClosestTrack.targetTrack != -1)
                 {
+                    currentTrack = ClosestTrack.targetTrack;
                     sortedRequests.Add(ClosestTrack);
                     Requests.Remove(ClosestTrack);
                 }
@@ -185,7 +179,7 @@ namespace KursovaIO
                         Requests.Remove(request);
                     }
                 }
-                // driver.MoveToFirstTrack()
+                driver.MoveToFirstTrack();
             }
 
         }
@@ -220,15 +214,15 @@ namespace KursovaIO
             }
         }
 
-        public void ExecuteProcesses(HardDrive hardDrive)
+        public void ExecuteProcesses(HardDriveController hardDriveController)
         {
-            while (hardDrive.TotalRequestsNumber < 1000)
+            while (hardDriveController.TotalRequestsNumber < 1000)
             {
                 foreach (var process in Processes)
                 {
                     while (CurrentQuantumTime >= 7)
                     {
-                        process.CreateRequest(hardDrive);
+                        process.CreateRequest(hardDriveController);
                         CurrentQuantumTime -= process.RequestTime;
                     }
                     CurrentQuantumTime = TotalQuantumTime;
@@ -242,7 +236,7 @@ namespace KursovaIO
         private File file;
         public Process() { }
         public int RequestTime { get; set; } = 7;
-        public void CreateRequest(HardDrive hardDrive)
+        public void CreateRequest(HardDriveController hardDriveCotroller)
         {
             if (this.file == null || this.file.blocksRemaining == 0)
             {
@@ -254,11 +248,24 @@ namespace KursovaIO
 
             if (writeOperation)
             {
-                hardDrive.Write(file);
+                float percent = (float)file.blocksRemaining / (float)file.NumberOfBlocks;
+                if (percent < 0.3)
+                {
+                    // driver can write up to 30% of file's blocks in 
+                    // neighbour sector on same track
+                    // targetTrack = targetTrack;
+                    Console.WriteLine($"----Organizing blocks in adjacent sectors. CurrentPercent {percent} ");
+                }
+                else
+                {
+                    file.TargetTrack = new Random().Next(0, hardDriveCotroller.NumberOfTracks);
+                }
+                hardDriveCotroller.AddRequest(file, writeOperation, file.TargetTrack);
             }
             else
             {
-                hardDrive.Read(file);
+                file.TargetTrack = new Random().Next(0, hardDriveCotroller.NumberOfTracks);
+                hardDriveCotroller.AddRequest(file, writeOperation, file.TargetTrack);
             }
             file.blocksRemaining--;
         }
@@ -282,6 +289,7 @@ namespace KursovaIO
     public class File
     {
         public int blocksRemaining = 0;
+        public int TargetTrack { get; set; }
         public int NumberOfBlocks { get; set; }
         public File(int numberOfBlocks)
         {
@@ -300,8 +308,10 @@ namespace KursovaIO
         static void Main(string[] args)
         {
             HardDrive driveC = new HardDrive(numberOfTracks:500, sectorsPerTrack:100);
+            HardDriveController driveCController = new HardDriveController(driveC);
+            driveCController.TypeOfAlgorithm = 2;
             Processor singlePros = new Processor(numberOfProcesses:10, quantTime:20);
-            singlePros.ExecuteProcesses(driveC);
+            singlePros.ExecuteProcesses(driveCController);
         }
     }
 }
