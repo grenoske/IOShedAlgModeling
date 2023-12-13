@@ -91,28 +91,33 @@ namespace KursovaIO
             this.driver = driver;
             Requests = new List<Request>(); 
         }
-        public void AddRequest(File filePart, bool typeOfRequest, int targetTrack, int time)
+        public bool AddRequest(File filePart, bool typeOfRequest, int targetTrack, int time)
         {
+            if (Requests.Count == QueueLength)
+            {
+                Console.WriteLine("============proc wait free space in driver queue===========");
+                ProcessRequest();
+                return false;
+            }
             Requests.Add(new Request()
             {
                 File = filePart,
                 TypeOfRequest = typeOfRequest,
                 targetTrack = targetTrack
             });
-
+            
             if (time >= driver.TotalTime) // if proc work time higher than disc time
             {
                 Console.WriteLine("==============procTime: " + time + " driverTime" + driver.TotalTime+"======disc start processing queue");
-                driver.TimeForProcesQueue = 0;
                 driver.TotalTime = time;
                 ProcessRequest();
-                driver.TotalTime += driver.TimeForProcesQueue;
             }
-
+            return true;
         }
         public void ProcessRequest()
         {
-            switch(TypeOfAlgorithm) 
+            driver.TimeForProcesQueue = 0;
+            switch (TypeOfAlgorithm) 
             {
                 case 1: FCFS();break; 
                 case 2: SSTF();break;
@@ -134,6 +139,7 @@ namespace KursovaIO
                     driver.MoveToFirstTrack();
             }
             Requests.Clear();
+            driver.TotalTime += driver.TimeForProcesQueue;
 
         }
 
@@ -221,7 +227,7 @@ namespace KursovaIO
         public int TotalQuantumTime { get; set; } = 20;
         public int CurrentQuantumTime { get; set; } = 0;
         public int CurrentTime { get; private set; } = 0;
-        public int TotalRequestNumberLimit { get; set; } = 1000;
+        public int TotalRequestNumberLimit { get; set; } = 10000;
         public int RequestPerSecond { get; set; }
         public int CurrentReqestPerSecond { get; set; }
         public Processor(int numberOfProcesses, int quantTime, int reqPerSec)
@@ -383,7 +389,13 @@ namespace KursovaIO
             // set current time to processes
             foreach (var proc in Processes)
             {
-                proc.CurrTime = TotalTime;
+                if (TotalTime >= proc.CurrTime)
+                    proc.CurrTime = TotalTime;
+                else
+                {
+                    TotalTime = proc.CurrTime;
+                    break;
+                }
             }
         }
     }
@@ -409,7 +421,13 @@ namespace KursovaIO
                 file.blocksRemaining = file.Blocks.Length;
                 Console.WriteLine($"file.blocksRemaining = file.Blocks.Length: {file.blocksRemaining}");
             }
-            hardDriveCotroller.AddRequest(file, writeOperation, file.TargetTrack, CurrTime);   
+            bool isSuc = hardDriveCotroller.AddRequest(file, writeOperation, file.TargetTrack, CurrTime); 
+            if (!isSuc)                                  // if queue is full
+            {
+                CurrTime = hardDriveCotroller.TotalTime; // wait til driver process queue
+                hardDriveCotroller.AddRequest(file, writeOperation, file.TargetTrack, CurrTime);
+            }
+
             file.TargetTrack = file.Blocks[file.Blocks.Length - file.BlocksRequestRemaining] / hardDriveCotroller.driver.Tracks.Count;
             file.BlocksRequestRemaining--;
             if (file.BlocksRequestRemaining < 0 || file.blocksRemaining < 0)
@@ -548,7 +566,7 @@ namespace KursovaIO
 
             
             HardDriveController driveCController = new HardDriveController(driveC);
-            driveCController.TypeOfAlgorithm = 3;
+            driveCController.TypeOfAlgorithm = 2;
             Processor singlePros = new Processor(numberOfProcesses: 10, quantTime: 20, reqPerSec: 50);
             singlePros.ExecuteProcesses2(driveCController, fileManager);
 
