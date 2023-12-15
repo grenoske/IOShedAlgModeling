@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Security.AccessControl;
 using System.Security.Cryptography;
@@ -42,27 +43,30 @@ namespace KursovaIO
 
             PositionTime = SeekTime + RotationLatency;
 
-            Console.WriteLine($"Seeking from {currentTrack} to track {targetTrack} takes {PositionTime} ms.");
+            Console.WriteLine($"--DISK--Seeking from {currentTrack} to track {targetTrack} takes {PositionTime} ms., disc time: {TotalTime}");
 
             currentTrack = targetTrack;
             TimeForProcesQueue += PositionTime;
+            TotalTime += PositionTime;
         }
 
         public void Read(File file, int targetTrack)
         {
-            Console.WriteLine($"Reading file with {file.NumberOfBlocks} blocks from the hard drive.(Current Bolock: {file.blocksRemaining}");
+            //Console.WriteLine($"Reading file with {file.NumberOfBlocks} blocks from the hard drive.(Current Bolock: {file.blocksRemaining}");
+            file.BlockProcess = false;
             SeekToTrack(targetTrack);
-            file.blocksRemaining--;
+            //file.blocksRemaining--;
             TotalRequestsNumber++;
+            Console.WriteLine($"--DISK-R-- unb pro, time of disk: {TotalTime}");
         }
 
         public void Write(File file, int targetTrack)
         {
-            
-            Console.WriteLine($"Writing file with {file.NumberOfBlocks} blocks to the hard drive.(Current Bolock: {file.blocksRemaining}");
+            //Console.WriteLine($"Writing file with {file.NumberOfBlocks} blocks to the hard drive.(Current Bolock: {file.blocksRemaining}");
             SeekToTrack(targetTrack);
-            file.blocksRemaining--;
+            //file.blocksRemaining--;
             TotalRequestsNumber++;
+            Console.WriteLine($"--DISK-W-- xxx pro, time of disk: {TotalTime}");
         }
 
         public void MoveToFirstTrack()
@@ -91,26 +95,41 @@ namespace KursovaIO
             this.driver = driver;
             Requests = new List<Request>(); 
         }
-        public void AddRequest(File filePart, bool typeOfRequest, int targetTrack)
+        public void SyncTime(int time)
         {
-            Console.WriteLine($"------------Requests.Count: {Requests.Count}");
-            if (Requests.Count == QueueLength) // maximum number of request queue is 20 
+            if (time >= driver.TotalTime) // if proc work time higher than disc time
             {
-                driver.TimeForProcesQueue = 0;
-                Console.WriteLine($"------------TotalReqNumber: {TotalRequestsNumber}");
+                Console.WriteLine("==============procTime: " + time + " driverTime" + driver.TotalTime + "======disc start processing queue");
                 ProcessRequest();
-                driver.TotalTime += driver.TimeForProcesQueue;
+                if (driver.TotalTime < time)
+                    driver.TotalTime = time;
+                //ProcessRequest();
             }
-            Requests.Add(new Request() 
-            { 
+        }
+
+        public bool AddRequest(File filePart, bool typeOfRequest, int targetTrack, int time)
+        {
+            if (Requests.Count == QueueLength)
+            {
+                Console.WriteLine("============proc wait free space in driver queue===========");
+                ProcessRequest();
+                return false;
+            }
+            Requests.Add(new Request()
+            {
                 File = filePart,
                 TypeOfRequest = typeOfRequest,
                 targetTrack = targetTrack
             });
+            Console.WriteLine("***PROC*** add req, time of proc: " + time );
+            
+            SyncTime(time);
+            return true;
         }
         public void ProcessRequest()
         {
-            switch(TypeOfAlgorithm) 
+            driver.TimeForProcesQueue = 0;
+            switch (TypeOfAlgorithm) 
             {
                 case 1: FCFS();break; 
                 case 2: SSTF();break;
@@ -127,8 +146,12 @@ namespace KursovaIO
                 {
                     driver.Read(req.File, req.targetTrack);
                 }
+
+                if (req.MoveToFirstTrack)
+                    driver.MoveToFirstTrack();
             }
             Requests.Clear();
+            //driver.TotalTime += driver.TimeForProcesQueue;
 
         }
 
@@ -190,7 +213,10 @@ namespace KursovaIO
                     }
                 }
                 Requests.RemoveAll(request => sortedRequests.Contains(request));
-                driver.MoveToFirstTrack();
+                // add a flag that need to move to first track
+                Request req = sortedRequests[sortedRequests.Count - 1];
+                req.MoveToFirstTrack = true;
+                sortedRequests[sortedRequests.Count - 1] = req;
             }
             Requests = sortedRequests;
 
@@ -201,19 +227,25 @@ namespace KursovaIO
     public struct Request
     {
         public File File { get; set; }
+        public bool MoveToFirstTrack { get; set; }
         public bool TypeOfRequest { get; set; } // 0 - Read, 1 - Write
         public int targetTrack { get; set; }
     }
 
     public class Processor
     {
-        public float TotalTime { get; set; } = 0;
+        public int TotalTime { get; set; } = 0;
+        public int ProcessesRequests { get; set; }
         public int TotalQuantumTime { get; set; } = 20;
         public int CurrentQuantumTime { get; set; } = 0;
         public int CurrentTime { get; private set; } = 0;
-        public int RequestPerSecond { get; set; } = 50;
-        public Processor(int numberOfProcesses, int quantTime)
+        public int TotalRequestNumberLimit { get; set; } = 500;
+        public int RequestPerSecond { get; set; }
+        public int CurrentReqestPerSecond { get; set; }
+        public int CurrentTimeOfNrequest { get; set; }
+        public Processor(int numberOfProcesses, int quantTime, int reqPerSec)
         {
+            RequestPerSecond = reqPerSec;
             TotalQuantumTime = quantTime;
             CurrentQuantumTime = quantTime;
             InitializeProcesses(numberOfProcesses);
@@ -236,7 +268,7 @@ namespace KursovaIO
             return RequestPerSecond / numberOfProcesses;
         }
 
-        private void RecordTime(int TimeForProcesQueue, float koef, int requests)
+/*        private void RecordTime(int TimeForProcesQueue, float koef, int requests)
         {
 
             if (TimeForProcesQueue < koef)
@@ -245,13 +277,14 @@ namespace KursovaIO
                                    // than driver write/read file, then 
                                    // driver wait till queue is full
             }
-            TotalTime += TimeForProcesQueue;
+            else
+                TotalTime += TimeForProcesQueue;
             using (StreamWriter writer = new StreamWriter(".\\text.txt", true))
             {
                 writer.WriteLine(TotalTime + ";" + requests);
             }
             Console.WriteLine($" Total time: {TimeForProcesQueue} ms");
-        }
+        }*/
 
         private void CleanFile()
         {
@@ -261,84 +294,218 @@ namespace KursovaIO
             }
         }
 
-        public void ExecuteProcesses(HardDriveController hardDriveController)
+        public void ExecuteProcesses(HardDriveController hardDriveController, FileManager fileManager)
         {
-            float koef = 1000 / ((float)RequestPerSecond / (float)hardDriveController.QueueLength);
-            while (hardDriveController.TotalRequestsNumber < 1000)
+            //float koef = 1000 / ((float)RequestPerSecond / (float)hardDriveController.QueueLength);
+            while (hardDriveController.TotalRequestsNumber < TotalRequestNumberLimit)
             {
-
+                CurrentReqestPerSecond = RequestPerSecond;
                 foreach (var process in Processes)
                 {
-                    
-                    while (CurrentQuantumTime >= process.RequestTime)
-                    {
-                        process.CreateRequest(hardDriveController);
-                        if (hardDriveController.Requests.Count == 20) 
-                            RecordTime(hardDriveController.TimeForProcesQueue, koef, hardDriveController.TotalRequestsNumber);
-                        CurrentQuantumTime -= process.RequestTime;
-                    }
-                    CurrentQuantumTime = TotalQuantumTime;
-
-
+                    process.currRequestPerSecondLimit = process.RequestPerSecondLimit;
                 }
 
-                
+                while (CurrentReqestPerSecond != 0 && hardDriveController.TotalRequestsNumber < TotalRequestNumberLimit)
+                {
+
+                    foreach (var process in Processes)
+                    {
+
+                        while (CurrentQuantumTime >= process.RequestTime)
+                        {
+                            process.CreateRequest(hardDriveController, fileManager);
+                            TotalTime += process.RequestTime;
+                            
+                            /*if (hardDriveController.Requests.Count == 20)
+                                RecordTime(hardDriveController.TimeForProcesQueue, koef, hardDriveController.TotalRequestsNumber);*/
+                            if (hardDriveController.TotalRequestsNumber < TotalRequestNumberLimit)
+                                break;
+                            CurrentQuantumTime -= process.RequestTime;
+                            process.currRequestPerSecondLimit--;
+                            CurrentReqestPerSecond--;
+
+                        }
+                        CurrentQuantumTime = TotalQuantumTime;
+                    }
+                    
+                }
 
             }
-            Console.WriteLine($" Total time for 100000 requests: {TotalTime} ms");
+            Console.WriteLine($"*** Total time for 100000 requests: {TotalTime} ms");
+        }
+
+        public void ExecuteProcesses2(HardDriveController hardDriveController, FileManager fileManager)
+        {
+            int test_itterator = 1000;
+            float koef = 1000 / ((float)RequestPerSecond / (float)hardDriveController.QueueLength);
+            while (hardDriveController.TotalRequestsNumber < TotalRequestNumberLimit)
+            {
+                CurrentReqestPerSecond = RequestPerSecond;
+                foreach (var process in Processes)
+                {
+                    process.currRequestPerSecondLimit = process.RequestPerSecondLimit;
+                }
+
+                while (CurrentReqestPerSecond != 0)
+                {
+
+                    foreach (var process in Processes)
+                    {
+
+                        while (CurrentQuantumTime >= process.RequestTime && process.currRequestPerSecondLimit != 0)
+                        {
+                            if (TotalTime > test_itterator)
+                            {
+                                CurrentReqestPerSecond--;
+                                break;
+                            }
+                                
+                            TotalTime += process.RequestTime;
+                            hardDriveController.SyncTime(process.CurrTime);
+                            if (hardDriveController.TotalRequestsNumber == 981)
+                                Console.WriteLine();
+                            Console.WriteLine(hardDriveController.TotalRequestsNumber);
+                            if (fileManager.Files[process.nProc].BlockProcess == true)
+                            {
+/*                                if (TotalTime >= ProcessesRequests * 1000 / RequestPerSecond )
+                                    break;*/
+                                CurrentQuantumTime -= process.RequestTime;
+                                //TotalTime += process.RequestTime;
+                                hardDriveController.SyncTime(TotalTime);
+                                Console.WriteLine("***PROC*** process " + process.nProc + " waits " + TotalTime);
+                            }
+
+
+                            UpdateTimeForProcesses();
+                            process.CreateRequest(hardDriveController, fileManager);
+                            ProcessesRequests++;
+/*                            if (hardDriveController.Requests.Count == 20)
+                                RecordTime(hardDriveController.TimeForProcesQueue, koef, hardDriveController.TotalRequestsNumber);*/
+
+
+                            CurrentQuantumTime -= process.RequestTime;
+                            process.currRequestPerSecondLimit--;
+                            CurrentReqestPerSecond--;
+                            if (CurrentReqestPerSecond == 0)
+                                break;
+                            if (ProcessesRequests == TotalRequestNumberLimit)
+                            {
+                                Console.WriteLine($"***PROC***  Total time for 100000 requests: {TotalTime} ms");
+                                return;
+                            }
+
+                        }
+                        CurrentQuantumTime = TotalQuantumTime;
+                        if (CurrentReqestPerSecond == 0)
+                            break;
+                    }
+                }
+
+                //TimeSync(hardDriveController.driver.TotalTime);
+                if (TotalTime < test_itterator)
+                    TotalTime = test_itterator;
+                //hardDriveController.SyncTime(TotalTime);
+                hardDriveController.SyncTime(TotalTime);
+                TimeSync(hardDriveController.driver.TotalTime);
+                
+                Console.WriteLine("***PROC*** ----------TotalTIme +1000");
+                Console.WriteLine($"***PROC***  Total time for 100000 requests: {TotalTime} ms");
+                test_itterator += 1000;
+
+
+            }
+            
+        }
+
+        private void TimeSync (int driverTotalTime)
+        {
+            // sync time between proc and driver;
+            if (driverTotalTime > TotalTime)
+            {
+               TotalTime = driverTotalTime;
+            }
+        }
+        private void UpdateTimeForProcesses()
+        {
+            // set current time to processes
+            foreach (var proc in Processes)
+            {
+                if (TotalTime >= proc.CurrTime)
+                    proc.CurrTime = TotalTime;
+                else
+                {
+                    TotalTime = proc.CurrTime;
+                    break;
+                }
+            }
         }
     }
     public class Process
     {
         private static int instanceCount = 0; // for rand seed
+        public int nProc = 0;
         private Random rand;
-        private bool writeOperation = false;
-        private File file;      
-        public Process() { rand = new Random(instanceCount); instanceCount++; }
+        private bool modifyOperation = false;
+        private File file;
+        public Process() { rand = new Random(instanceCount); nProc = instanceCount;  instanceCount++; }
         public int RequestTime { get; set; } = 7;
+        public int CurrTime { get; set; }
         public int RequestPerSecondLimit { get; set; } = 1;
-        public void CreateRequest(HardDriveController hardDriveCotroller)
+        public int currRequestPerSecondLimit { get; set; } = 1;
+        public void CreateRequest(HardDriveController hardDriveCotroller, FileManager fM)
         {
-            if (this.file == null || this.file.BlocksRequestRemaining == 0)
-            {
-                file = new File(GetRandomNumberOfBlocks());
 
-                // Визначення операції (запис або читання)
-                writeOperation = GetRandomOperation();
+            double randLarge = rand.NextDouble();
+            if (file == null)
+            {
+                file = fM.Files[nProc];
+                modifyOperation = GetRandomOperation(); // modify/read  50/50
+
+                if (file.Type == FileManager.FileType.LARGE && randLarge > 0.5)
+                {
+                    file.BlocksRequestRemaining = file.Blocks.Length;
+                }
+                    
+                //file.blocksRemaining = file.Blocks.Length;
+                //Console.WriteLine($"file.blocksRemaining = file.Blocks.Length: {file.blocksRemaining}");
             }
 
-            if (writeOperation)
+            if (file.Type == FileManager.FileType.LARGE && randLarge > 0.5)
             {
-                float percent = (float)file.BlocksRequestRemaining / (float)file.NumberOfBlocks;
-                if (percent < 0.3)
-                {
-                    // driver can write up to 30% of file's blocks in 
-                    // neighbour sector on same track
-                    // targetTrack = targetTrack;
-                    Console.WriteLine($"----Organizing blocks in adjacent sectors. CurrentPercent {percent} ");
-                }
-                else
-                {
-                    file.TargetTrack = rand.Next(0, hardDriveCotroller.NumberOfTracks);
-                }
-                hardDriveCotroller.AddRequest(file, writeOperation, file.TargetTrack);
+                file.TargetTrack = file.Blocks[file.Blocks.Length - file.BlocksRequestRemaining] / hardDriveCotroller.driver.Tracks.Count;
                 file.BlocksRequestRemaining--;
+                if (file.BlocksRequestRemaining == 0)                  
+                    file.BlocksRequestRemaining = file.Blocks.Length;
             }
             else
             {
-                file.TargetTrack = rand.Next(0, hardDriveCotroller.NumberOfTracks);
-                hardDriveCotroller.AddRequest(file, writeOperation, file.TargetTrack);
-                file.BlocksRequestRemaining--;
+                file.TargetTrack = file.Blocks[rand.Next(0, file.Blocks.Length)] / hardDriveCotroller.driver.Tracks[0].Sectors;
             }
-            //file.blocksRemaining--;
-        }
 
-        private int GetRandomNumberOfBlocks()
-        {
-            return rand.Next(1, 501);
-            
-        }
+            bool writeOperation = false;
 
+            if (modifyOperation) 
+            {
+                if (GetRandomOperation()) // write with chance 50%. 
+                    writeOperation = true;
+            }    
+
+            if (!writeOperation)
+            {
+                Console.WriteLine("***PROC*** blocking process");
+                file.BlockProcess = true; // if read then process will wait
+            }
+
+
+
+            bool isSuc = hardDriveCotroller.AddRequest(file, writeOperation, file.TargetTrack, CurrTime); 
+            if (!isSuc)                                  // if queue is full
+            {
+                CurrTime = hardDriveCotroller.TotalTime; // wait til driver process queue
+                hardDriveCotroller.AddRequest(file, writeOperation, file.TargetTrack, CurrTime);
+            }
+
+        }
         private bool GetRandomOperation()
         {
             return rand.Next(0, 2) == 0;
@@ -352,15 +519,20 @@ namespace KursovaIO
 
     public class File
     {
+        public bool BlockProcess = false;
+        public FileManager.FileType Type;
         public int blocksRemaining = 0;
         public int BlocksRequestRemaining = 0;
+        public int[] Blocks;
         public int TargetTrack { get; set; }
         public int NumberOfBlocks { get; set; }
-        public File(int numberOfBlocks)
+        public File(int numberOfBlocks, FileManager.FileType type)
         {
+            Type = type;
             blocksRemaining = numberOfBlocks;
             NumberOfBlocks = numberOfBlocks;
             BlocksRequestRemaining = numberOfBlocks;
+            Blocks = new int[numberOfBlocks];
         }
 
         public bool IsCompleted()
@@ -369,15 +541,112 @@ namespace KursovaIO
         }
     }
 
+    public class FileManager
+    {
+        private Random rand;
+        private HardDrive drive;
+        public enum FileType { SMALL, MEDIUM, LARGE }
+
+        public List<File> Files;
+        public FileManager(HardDrive drive) 
+        {
+            Files = new List<File>();
+            rand = new Random(1);
+            this.drive = drive;
+        }
+        public void CreateFiles(int filesNumber)
+        {
+            
+            for (int i = 0; i < filesNumber; i++)
+            {
+                FileType type = (FileType)rand.Next(0, 3);
+
+                Files.Add(new File(GetRandomNumberOfBlocks(type), type));
+            }
+        }
+
+        public void OrganizeFiles()
+        {
+            //
+            int currSector = 1;
+            int maxSectorNum = drive.Tracks.Count * drive.Tracks[0].Sectors;
+            foreach (File file in Files)
+            {
+                for (int j = 0; j < file.NumberOfBlocks && currSector < maxSectorNum; currSector++)
+                {
+                    if (rand.NextDouble() <= 0.3)
+                    {
+                        file.Blocks[j] = currSector;
+                        j++;
+                    }
+                }
+
+            }
+        }
+
+        public void ShowStateOfDiscSpace()
+        {
+            char[][] Sectors = new char[500][];
+            for (int i = 0; i < 500; i++)
+            {
+                Sectors[i] = new char[drive.Tracks[0].Sectors];
+                // Ініціалізація кожного елемента нульовим значенням
+                for (int j = 0; j < drive.Tracks[0].Sectors; j++)
+                {
+                    Sectors[i][j] = '0';
+                }
+            }
+            foreach (File file in Files)
+            {
+                for (int i = 0; i < file.Blocks.Length; i++)
+                {
+                    int track = file.Blocks[i] / drive.Tracks[0].Sectors;
+                    int sector = file.Blocks[i] % drive.Tracks[0].Sectors;
+                    Sectors[track][sector] = '1';
+                }
+            }
+
+            for (int i = 0; i < 500; i++)
+            {
+                for (int j = 0; j < drive.Tracks[0].Sectors; j++)
+                {
+                    Console.Write(Sectors[i][j]);
+                }
+                Console.WriteLine();
+            }
+        }
+
+        private int GetRandomNumberOfBlocks(FileType fileType)
+        {
+            if (fileType == FileType.SMALL)
+                return rand.Next(1, 11);
+            else if (fileType == FileType.MEDIUM)
+                return rand.Next(11, 151);
+            else if (fileType == FileType.LARGE)
+                return rand.Next(151, 501);
+            else
+                throw new Exception("No such file size");
+        }
+
+    }
+
     internal class Program
     {
         static void Main(string[] args)
         {
-            HardDrive driveC = new HardDrive(numberOfTracks:500, sectorsPerTrack:100);
-            HardDriveController driveCController = new HardDriveController(driveC);
-            driveCController.TypeOfAlgorithm = 1;
-            Processor singlePros = new Processor(numberOfProcesses:10, quantTime:20);
-            singlePros.ExecuteProcesses(driveCController);
+            HardDrive driveC = new HardDrive(numberOfTracks: 500, sectorsPerTrack: 100);
+            FileManager fileManager = new FileManager(driveC);
+            fileManager.CreateFiles(10);
+            fileManager.OrganizeFiles();
+            //fileManager.ShowStateOfDiscSpace();
+
+            
+            HardDriveController driveCController = new HardDriveController(driveC);// 50 req / sec 250 req 
+            driveCController.TypeOfAlgorithm = 3;
+            Processor singlePros = new Processor(numberOfProcesses: 10, quantTime: 20, reqPerSec: 50) { TotalRequestNumberLimit=100000 };
+            singlePros.ExecuteProcesses2(driveCController, fileManager);
+            Console.ReadLine();
+
         }
     }
 }
