@@ -3,56 +3,70 @@
   <Class Name="KursovaIO.HardDrive">
     <Position X="3.25" Y="0.75" Width="1.5" />
     <TypeIdentifier>
-      <HashCode>gAAAAAQAAEAAAAAAAAAhAAAoIAAwAAECAAAiIAEAAAA=</HashCode>
+      <HashCode>AAAAAAQAAEAAAAAAAAAhAAAoIAAwAAECAAAiIAEAAAA=</HashCode>
       <FileName>Program.cs</FileName>
     </TypeIdentifier>
   </Class>
   <Class Name="KursovaIO.HardDriveController">
     <Position X="5.5" Y="1.5" Width="1.5" />
     <TypeIdentifier>
-      <HashCode>EAAAAAIABAAAAAAAABADAACAAAAQAAECAAAAEBAAAEA=</HashCode>
+      <HashCode>EAAAAgMABAAAAAAAABADAACAAAAQAAECAAAAEBAAAEA=</HashCode>
       <FileName>Program.cs</FileName>
     </TypeIdentifier>
   </Class>
   <Class Name="KursovaIO.Processor">
-    <Position X="10.25" Y="2" Width="1.5" />
+    <Position X="7.25" Y="0.5" Width="1.5" />
     <TypeIdentifier>
-      <HashCode>BAAAAIAAAAAAAAAAAIAAAAAAAAAAAAEBAAgDiAAAAQA=</HashCode>
+      <HashCode>BABAAMAAAAAIAAAAAIAAAAAEAABAAAEBACgDiAAAAQA=</HashCode>
       <FileName>Program.cs</FileName>
     </TypeIdentifier>
   </Class>
   <Class Name="KursovaIO.Process">
-    <Position X="7.75" Y="0.75" Width="1.5" />
+    <Position X="7.25" Y="5.25" Width="1.5" />
     <TypeIdentifier>
-      <HashCode>AAAAAIAAAAAAEAEgAAAAQAAAAAACBAACBAAAAAAAABA=</HashCode>
+      <HashCode>AAAAAIAAAAAAEAUgAAAAQAAAAAACBAAABIAQAAAAAAA=</HashCode>
       <FileName>Program.cs</FileName>
     </TypeIdentifier>
   </Class>
   <Class Name="KursovaIO.File">
-    <Position X="7.75" Y="4.5" Width="1.5" />
+    <Position X="9.25" Y="4.5" Width="1.5" />
     <TypeIdentifier>
-      <HashCode>AAAAAAAAAAAACAAAgAAAAAAAEAAAABBAAAAAAAAAAAA=</HashCode>
+      <HashCode>AAAEAAAAAAAACAAAgAAAAAAAEAAAABBAAQAAAAACAAA=</HashCode>
       <FileName>Program.cs</FileName>
     </TypeIdentifier>
   </Class>
   <Class Name="KursovaIO.Program">
-    <Position X="12.25" Y="2.75" Width="1.5" />
+    <Position X="11" Y="3.25" Width="1.5" />
     <TypeIdentifier>
       <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAA=</HashCode>
       <FileName>Program.cs</FileName>
     </TypeIdentifier>
   </Class>
+  <Class Name="KursovaIO.FileManager">
+    <Position X="9.25" Y="1.5" Width="1.5" />
+    <NestedTypes>
+      <Enum Name="KursovaIO.FileManager.FileType" Collapsed="true">
+        <TypeIdentifier>
+          <NewMemberFileName>Program.cs</NewMemberFileName>
+        </TypeIdentifier>
+      </Enum>
+    </NestedTypes>
+    <TypeIdentifier>
+      <HashCode>AAAACIAAAAAAAQAAAAAAAACAAAACAAAAAAAAAAAAAJA=</HashCode>
+      <FileName>Program.cs</FileName>
+    </TypeIdentifier>
+  </Class>
   <Struct Name="KursovaIO.Track">
-    <Position X="3.25" Y="5.5" Width="1.5" />
+    <Position X="3.25" Y="5.25" Width="1.5" />
     <TypeIdentifier>
       <HashCode>AAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>Program.cs</FileName>
     </TypeIdentifier>
   </Struct>
   <Struct Name="KursovaIO.Request">
-    <Position X="5.5" Y="5.5" Width="1.5" />
+    <Position X="5.5" Y="5.75" Width="1.5" />
     <TypeIdentifier>
-      <HashCode>gAAAAAAAAAAAAAAEAAAAAAAAAAAEAAAAAAAAAAAAAAA=</HashCode>
+      <HashCode>gAAAAAAAAAAAAAAEAAAgAAAAAAAEAAAAAAAAAAAAAAA=</HashCode>
       <FileName>Program.cs</FileName>
     </TypeIdentifier>
   </Struct>

@@ -1,4 +1,5 @@
-﻿using System;
+﻿// ПОСИЛАННЯ 
+using System;
 using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Security.AccessControl;
@@ -15,7 +16,6 @@ namespace KursovaIO
         }
 
         public List<Track>? Tracks { get; set; }
-        private int targetTrack;
         public int SeekTime { get; set; }
         public int TotalTime { get; set; }
         public int TimeForProcesQueue { get; set; }
@@ -43,7 +43,7 @@ namespace KursovaIO
 
             PositionTime = SeekTime + RotationLatency;
 
-            Console.WriteLine($"--DISK--Seeking from {currentTrack} to track {targetTrack} takes {PositionTime} ms., disc time: {TotalTime}");
+            //Console.WriteLine($"--DISK--Seeking from {currentTrack} to track {targetTrack} takes {PositionTime} ms., disc time: {TotalTime}");
 
             currentTrack = targetTrack;
             TimeForProcesQueue += PositionTime;
@@ -52,21 +52,17 @@ namespace KursovaIO
 
         public void Read(File file, int targetTrack)
         {
-            //Console.WriteLine($"Reading file with {file.NumberOfBlocks} blocks from the hard drive.(Current Bolock: {file.blocksRemaining}");
             file.BlockProcess = false;
             SeekToTrack(targetTrack);
-            //file.blocksRemaining--;
             TotalRequestsNumber++;
-            Console.WriteLine($"--DISK-R-- unb pro, time of disk: {TotalTime}");
+            //Console.WriteLine($"--DISK-R-- unb pro, time of disk: {TotalTime}");
         }
 
         public void Write(File file, int targetTrack)
         {
-            //Console.WriteLine($"Writing file with {file.NumberOfBlocks} blocks to the hard drive.(Current Bolock: {file.blocksRemaining}");
             SeekToTrack(targetTrack);
-            //file.blocksRemaining--;
             TotalRequestsNumber++;
-            Console.WriteLine($"--DISK-W-- xxx pro, time of disk: {TotalTime}");
+            //Console.WriteLine($"--DISK-W-- xxx pro, time of disk: {TotalTime}");
         }
 
         public void MoveToFirstTrack()
@@ -99,7 +95,7 @@ namespace KursovaIO
         {
             if (time >= driver.TotalTime) // if proc work time higher than disc time
             {
-                Console.WriteLine("==============procTime: " + time + " driverTime" + driver.TotalTime + "======disc start processing queue");
+                //Console.WriteLine("==============procTime: " + time + " driverTime" + driver.TotalTime + "======disc start processing queue");
                 ProcessRequest();
                 if (driver.TotalTime < time)
                     driver.TotalTime = time;
@@ -111,7 +107,7 @@ namespace KursovaIO
         {
             if (Requests.Count == QueueLength)
             {
-                Console.WriteLine("============proc wait free space in driver queue===========");
+                //Console.WriteLine("============proc wait free space in driver queue===========");
                 ProcessRequest();
                 return false;
             }
@@ -121,7 +117,7 @@ namespace KursovaIO
                 TypeOfRequest = typeOfRequest,
                 targetTrack = targetTrack
             });
-            Console.WriteLine("***PROC*** add req, time of proc: " + time );
+            //Console.WriteLine("***PROC*** add req, time of proc: " + time );
             
             SyncTime(time);
             return true;
@@ -212,7 +208,7 @@ namespace KursovaIO
                         sortedRequests.Add(request);
                     }
                 }
-                Requests.RemoveAll(request => sortedRequests.Contains(request));
+                RemoveElements(Requests, sortedRequests);
                 // add a flag that need to move to first track
                 Request req = sortedRequests[sortedRequests.Count - 1];
                 req.MoveToFirstTrack = true;
@@ -220,6 +216,14 @@ namespace KursovaIO
             }
             Requests = sortedRequests;
 
+        }
+
+        private void RemoveElements<T>(List<T> source, List<T> elementsToRemove)
+        {
+            foreach (var element in elementsToRemove)
+            {
+                source.Remove(element);
+            }
         }
     }
 
@@ -268,24 +272,6 @@ namespace KursovaIO
             return RequestPerSecond / numberOfProcesses;
         }
 
-/*        private void RecordTime(int TimeForProcesQueue, float koef, int requests)
-        {
-
-            if (TimeForProcesQueue < koef)
-            {
-                TotalTime += koef; // if queue is fulling slower
-                                   // than driver write/read file, then 
-                                   // driver wait till queue is full
-            }
-            else
-                TotalTime += TimeForProcesQueue;
-            using (StreamWriter writer = new StreamWriter(".\\text.txt", true))
-            {
-                writer.WriteLine(TotalTime + ";" + requests);
-            }
-            Console.WriteLine($" Total time: {TimeForProcesQueue} ms");
-        }*/
-
         private void CleanFile()
         {
             using (StreamWriter writer = new StreamWriter(".\\text.txt"))
@@ -294,50 +280,18 @@ namespace KursovaIO
             }
         }
 
-        public void ExecuteProcesses(HardDriveController hardDriveController, FileManager fileManager)
+        private void RecordTime()
         {
-            //float koef = 1000 / ((float)RequestPerSecond / (float)hardDriveController.QueueLength);
-            while (hardDriveController.TotalRequestsNumber < TotalRequestNumberLimit)
+
+            using (StreamWriter writer = new StreamWriter(".\\text.txt", true))
             {
-                CurrentReqestPerSecond = RequestPerSecond;
-                foreach (var process in Processes)
-                {
-                    process.currRequestPerSecondLimit = process.RequestPerSecondLimit;
-                }
-
-                while (CurrentReqestPerSecond != 0 && hardDriveController.TotalRequestsNumber < TotalRequestNumberLimit)
-                {
-
-                    foreach (var process in Processes)
-                    {
-
-                        while (CurrentQuantumTime >= process.RequestTime)
-                        {
-                            process.CreateRequest(hardDriveController, fileManager);
-                            TotalTime += process.RequestTime;
-                            
-                            /*if (hardDriveController.Requests.Count == 20)
-                                RecordTime(hardDriveController.TimeForProcesQueue, koef, hardDriveController.TotalRequestsNumber);*/
-                            if (hardDriveController.TotalRequestsNumber < TotalRequestNumberLimit)
-                                break;
-                            CurrentQuantumTime -= process.RequestTime;
-                            process.currRequestPerSecondLimit--;
-                            CurrentReqestPerSecond--;
-
-                        }
-                        CurrentQuantumTime = TotalQuantumTime;
-                    }
-                    
-                }
-
+                writer.WriteLine(TotalTime + ";" + ProcessesRequests);
             }
-            Console.WriteLine($"*** Total time for 100000 requests: {TotalTime} ms");
         }
 
-        public void ExecuteProcesses2(HardDriveController hardDriveController, FileManager fileManager)
+        public void ExecuteProcesses(HardDriveController hardDriveController, FileManager fileManager)
         {
             int test_itterator = 1000;
-            float koef = 1000 / ((float)RequestPerSecond / (float)hardDriveController.QueueLength);
             while (hardDriveController.TotalRequestsNumber < TotalRequestNumberLimit)
             {
                 CurrentReqestPerSecond = RequestPerSecond;
@@ -354,34 +308,26 @@ namespace KursovaIO
 
                         while (CurrentQuantumTime >= process.RequestTime && process.currRequestPerSecondLimit != 0)
                         {
-                            if (TotalTime > test_itterator)
+                            if (TotalTime > test_itterator) 
                             {
-                                CurrentReqestPerSecond--;
+                                CurrentReqestPerSecond--; // can't execute request for this second
                                 break;
                             }
                                 
                             TotalTime += process.RequestTime;
                             hardDriveController.SyncTime(process.CurrTime);
-                            if (hardDriveController.TotalRequestsNumber == 981)
-                                Console.WriteLine();
-                            Console.WriteLine(hardDriveController.TotalRequestsNumber);
+                            //Console.WriteLine(hardDriveController.TotalRequestsNumber);
                             if (fileManager.Files[process.nProc].BlockProcess == true)
                             {
-/*                                if (TotalTime >= ProcessesRequests * 1000 / RequestPerSecond )
-                                    break;*/
                                 CurrentQuantumTime -= process.RequestTime;
-                                //TotalTime += process.RequestTime;
                                 hardDriveController.SyncTime(TotalTime);
-                                Console.WriteLine("***PROC*** process " + process.nProc + " waits " + TotalTime);
+                                //Console.WriteLine("***PROC*** process " + process.nProc + " waits " + TotalTime);
                             }
 
 
                             UpdateTimeForProcesses();
                             process.CreateRequest(hardDriveController, fileManager);
                             ProcessesRequests++;
-/*                            if (hardDriveController.Requests.Count == 20)
-                                RecordTime(hardDriveController.TimeForProcesQueue, koef, hardDriveController.TotalRequestsNumber);*/
-
 
                             CurrentQuantumTime -= process.RequestTime;
                             process.currRequestPerSecondLimit--;
@@ -401,17 +347,14 @@ namespace KursovaIO
                     }
                 }
 
-                //TimeSync(hardDriveController.driver.TotalTime);
                 if (TotalTime < test_itterator)
                     TotalTime = test_itterator;
-                //hardDriveController.SyncTime(TotalTime);
                 hardDriveController.SyncTime(TotalTime);
                 TimeSync(hardDriveController.driver.TotalTime);
                 
-                Console.WriteLine("***PROC*** ----------TotalTIme +1000");
-                Console.WriteLine($"***PROC***  Total time for 100000 requests: {TotalTime} ms");
+                Console.WriteLine($"***PROC***  Total time for requests: {TotalTime} ms");
+                RecordTime();
                 test_itterator += 1000;
-
 
             }
             
@@ -492,7 +435,7 @@ namespace KursovaIO
 
             if (!writeOperation)
             {
-                Console.WriteLine("***PROC*** blocking process");
+                //Console.WriteLine("***PROC*** blocking process");
                 file.BlockProcess = true; // if read then process will wait
             }
 
@@ -638,13 +581,13 @@ namespace KursovaIO
             FileManager fileManager = new FileManager(driveC);
             fileManager.CreateFiles(10);
             fileManager.OrganizeFiles();
-            //fileManager.ShowStateOfDiscSpace();
+            fileManager.ShowStateOfDiscSpace();
 
             
             HardDriveController driveCController = new HardDriveController(driveC);// 50 req / sec 250 req 
             driveCController.TypeOfAlgorithm = 3;
-            Processor singlePros = new Processor(numberOfProcesses: 10, quantTime: 20, reqPerSec: 50) { TotalRequestNumberLimit=100000 };
-            singlePros.ExecuteProcesses2(driveCController, fileManager);
+            Processor singlePros = new Processor(numberOfProcesses: 10, quantTime: 20, reqPerSec: 20) { TotalRequestNumberLimit=100000 };
+            singlePros.ExecuteProcesses(driveCController, fileManager);
             Console.ReadLine();
 
         }
